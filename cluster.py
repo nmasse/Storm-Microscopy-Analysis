@@ -3,20 +3,31 @@ import csv
 import time
 import pickle
 from sklearn.neighbors import NearestNeighbors
+from sklearn.cluster import dbscan
 import matplotlib.pyplot as plt
 
 class Cluster():
 
-    def __init__(self, data_file):
+    def __init__(self, filename):
 
-        data_dir = './Data/'
-        self.filename = data_dir + data_file
+        self.filename = filename
         self.load_coords()
         self.N = self.coords.shape[0] # number of coorinates
-        self.K = 1000 # number of nearest neighbors to use in chigirev_dim_reduction calculation
+        self.K = 250 # number of nearest neighbors to use in chigirev_dim_reduction calculation
 
     def return_coords(self):
         return self.coords
+
+
+    def db_scan(self):
+
+        max_dist = 100
+        max_dist = 300
+        min_samples = 3
+        metric = 'euclidean'
+        algo = 'kd_tree'
+        core_sample, labels = dbscan(self.coords, max_dist, min_samples, metric, algorithm = algo)
+        return core_sample, labels
 
     def load_coords(self):
 
@@ -26,8 +37,8 @@ class Cluster():
             for row in csvReader:
                 s1.append(row)
             s1 = np.stack(s1,axis=0)
-        self.coords = np.float32(s1[1:,1:4])
-        print('Coordinate shape ', self.coords.shape)
+        k = int(np.where(s1[0,:] == 'x [nm]')[0])
+        self.coords = np.float32(s1[1:,k:k+3])
 
     def chigirev_dim_reduction(self):
 
@@ -38,9 +49,9 @@ class Cluster():
         p_y = np.ones((self.N), dtype = np.float32)/self.N
         # intialize search tree
 
-        alpha = 20000
+        alpha = 2*(250**2)
 
-        for i in range(50):
+        for i in range(20):
 
             D = 0
             I = 0
@@ -82,4 +93,4 @@ class Cluster():
 
             print('Iteration ', i, ' D ', D, ' I ', I, ' Loss ', D + alpha*I)
 
-        return y
+        return y, p_y, p_y_x_collection
