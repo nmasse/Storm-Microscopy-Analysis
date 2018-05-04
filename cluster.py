@@ -21,13 +21,36 @@ class Cluster():
 
     def db_scan(self):
 
-        max_dist = 100
-        max_dist = 300
+        max_dist = 50
         min_samples = 3
+        min_samples_per_cluster = 5
+        max_samples_per_cluster = 10000
+
+        min_diameter = 25
+        max_diameter = 1000
+
         metric = 'euclidean'
         algo = 'kd_tree'
-        core_sample, labels = dbscan(self.coords, max_dist, min_samples, metric, algorithm = algo)
-        return core_sample, labels
+        _, labels = dbscan(self.coords, max_dist, min_samples, metric, algorithm = algo)
+
+        for i in np.unique(labels):
+            #continue
+
+            ind = np.where(labels == i)[0]
+            if len(ind) < min_samples_per_cluster or len(ind) > max_samples_per_cluster:
+                labels[ind] = -1
+                continue
+
+            pair_dist = np.zeros((len(ind), len(ind)), dtype = np.float32)
+            for j in range(3):
+                pair_dist += (np.tile(np.reshape(self.coords[ind,j],(1,len(ind))), (len(ind), 1)) - \
+                    np.tile(np.reshape(self.coords[ind,j],(len(ind), 1)), (1, len(ind))))**2
+
+            if np.max(pair_dist) < min_diameter**2 or np.max(pair_dist) > max_diameter**2:
+                labels[ind] = -1
+
+
+        return labels
 
     def load_coords(self):
 
