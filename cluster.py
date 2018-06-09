@@ -23,7 +23,7 @@ class Cluster():
 
         max_dist = 50
         min_samples = 3
-        min_samples_per_cluster = 5
+        min_samples_per_cluster = 25
         max_samples_per_cluster = 10000
 
         min_diameter = 25
