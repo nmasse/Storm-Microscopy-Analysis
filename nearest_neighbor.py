@@ -3,6 +3,7 @@ import csv
 import os
 import itertools
 import matplotlib
+import scipy.stats
 import matplotlib.pyplot as plt
 matplotlib.rcParams['pdf.fonttype'] = 42
 matplotlib.rcParams['ps.fonttype'] = 42
@@ -10,6 +11,7 @@ plt.rcParams["font.family"] = "Arial"
 
 from sklearn.neighbors import NearestNeighbors
 from sklearn.cluster import dbscan
+
 from itertools import product
 
 
@@ -39,14 +41,13 @@ class NN():
         # dbscan parameters
         self.dbscan_max_dist = 50
         self.dbscan_min_samples = 3
-        self.dbscan_min_samples_per_cluster = 25
+        self.dbscan_min_samples_per_cluster = 50
         self.dbscan_max_samples_per_cluster = 10000
         self.dbscan_min_diameter = 25
         self.dbscan_max_diameter = 1000
 
         # BIN1 interaction parameters
-        self.bin_interact_consideration_threshold = 500
-        self.bin_interact_dist_threshold = 20
+        self.bin_interact_dist_threshold = 50
         self.bin_interact_contact_points = 10
 
 
@@ -105,54 +106,69 @@ class NN():
 
         print(order)
 
-        c = 0.1
 
-        f = plt.figure(figsize=(8,4))
-        gs = matplotlib.gridspec.GridSpec(1, 2, width_ratios=[2.5, 1])
-        ax = f.add_subplot(1,1,1)
-        post_scores = []
-        pre_scores = []
+        for m in range(5):
 
-        ax0 = plt.subplot(gs[0])
-        for j, i in enumerate(order):
-            u = np.linspace(j+1-c, j+1+c, len(intearact_prob[i]))
-            if 'PSD' in subdirs[i] or 'GluA1' in subdirs[i] or 'CaMKII' in subdirs[i]:
-                col = 'r'
-                post_scores.append(intearact_prob[i])
-            else:
-                col = 'b'
-                pre_scores.append(intearact_prob[i])
+            c = 0.1
+            f = plt.figure(figsize=(8,4))
+            gs = matplotlib.gridspec.GridSpec(1, 2, width_ratios=[2.5, 1])
+            ax = f.add_subplot(1,1,1)
+            post_scores = []
+            pre_scores = []
+            inh_scores = []
 
-            ax0.plot(u, intearact_prob[i], '.', color = col, markersize=8)
-            ax0.plot([j+1-0.45, j+1+0.45],[np.median(intearact_prob[i]),np.median(intearact_prob[i])],'k')
+            ax0 = plt.subplot(gs[0])
+            for j, i in enumerate(order):
+                u = np.linspace(j+1-c, j+1+c, len(intearact_prob[i][m]))
+                if 'PSD' in subdirs[i] or 'GluA1' in subdirs[i] or 'CaMKII' in subdirs[i]:
+                    col = 'r'
+                    post_scores.append(intearact_prob[i][m])
+                elif 'Vgat' in subdirs[i]:
+                    col = 'g'
+                    inh_scores.append(intearact_prob[i][m])
+                else:
+                    col = 'b'
+                    pre_scores.append(intearact_prob[i][m])
 
-        ax0.set_xticks([1,2,3,4,5,6])
-        ax0.set_xticklabels(labels)
-        ax0.set_ylabel('Proportion')
-        ax0.set_ylim([0,0.07])
-        ax0.spines['top'].set_visible(False)
-        ax0.spines['right'].set_visible(False)
+                ax0.plot(u, intearact_prob[i][m], '.', color = col, markersize=8)
+                ax0.plot([j+1-0.45, j+1+0.45],[np.median(intearact_prob[i][m]),np.median(intearact_prob[i][m])],'k')
 
-
-        ax1 = plt.subplot(gs[1])
-        post_scores = list(itertools.chain(*post_scores))
-        pre_scores = list(itertools.chain(*pre_scores))
-        c = 0.75
-        u = np.linspace(1-c, 1+c, len(post_scores))
-        ax1.plot(u, post_scores,'r.',markersize=8)
-        ax1.plot([1-0.9, 1+0.9],[np.median(post_scores),np.median(post_scores)],'k')
-        u = np.linspace(3-c, 3+c, len(pre_scores))
-        ax1.plot(u, pre_scores,'b.',markersize=8)
-        ax1.plot([3-0.9, 3+0.9],[np.median(pre_scores),np.median(pre_scores)],'k')
-        ax1.set_xticks([1,3])
-        ax1.set_xticklabels(['Post-synaptic', 'Pre-synaptic'])
-        ax1.set_ylim([0,0.07])
-        ax1.spines['top'].set_visible(False)
-        ax1.spines['right'].set_visible(False)
+            ax0.set_xticks([1,2,3,4,5,6])
+            ax0.set_xticklabels(labels)
+            ax0.set_ylabel('Proportion')
+            #ax0.set_ylim([0,0.07])
+            ax0.spines['top'].set_visible(False)
+            ax0.spines['right'].set_visible(False)
 
 
-        plt.savefig('fig.pdf', format='pdf')
-        plt.show()
+            ax1 = plt.subplot(gs[1])
+            post_scores = list(itertools.chain(*post_scores))
+            pre_scores = list(itertools.chain(*pre_scores))
+            c = 0.75
+            u = np.linspace(1-c, 1+c, len(post_scores))
+            ax1.plot(u, post_scores,'r.',markersize=8)
+            ax1.plot([1-0.9, 1+0.9],[np.median(post_scores),np.median(post_scores)],'k')
+
+            u = np.linspace(3-c, 3+c, len(pre_scores))
+            ax1.plot(u, pre_scores,'b.',markersize=8)
+            ax1.plot([3-0.9, 3+0.9],[np.median(pre_scores),np.median(pre_scores)],'k')
+
+            u = np.linspace(5-c, 5+c, len(inh_scores))
+            ax1.plot(u, inh_scores,'g.',markersize=8)
+            ax1.plot([5-0.9, 5+0.9],[np.median(inh_scores),np.median(inh_scores)],'k')
+
+            ax1.set_xticks([1,3,5])
+            ax1.set_xticklabels(['Post-synaptic', 'Pre-synaptic', 'Inhibitory'])
+            #ax1.set_ylim([0,0.07])
+            ax1.spines['top'].set_visible(False)
+            ax1.spines['right'].set_visible(False)
+
+
+            plt.savefig('fig' + str(m) + '.pdf', format='pdf')
+            plt.show()
+
+            t1,p1 = scipy.stats.ttest_ind(post_scores, pre_scores)
+            print('P = ', p1)
 
     def search_dirs(self):
 
@@ -187,7 +203,10 @@ class NN():
             for f in files:
                 BIN.append(True if ('BIN' in f or 'Bin' in f) else False)
                 k = f.find('.')
-                iteration.append(int(f[k-1]))
+                if f[k-2].isdigit():
+                    iteration.append(int(f[k-2:k]))
+                else:
+                    iteration.append(int(f[k-1]))
                 x = self.load_coords(os.path.join(subdir, f))
                 print('Current file ', f, ' iter ', iteration[-1], ' Bin ', BIN[-1])
                 lbs, cluster_cm, cluster_lbs = self.db_scan(x)
@@ -200,9 +219,68 @@ class NN():
                 #coords.append(x)
 
 
-            dist, mean_num_synaptic_coords, intearact_prob , n_bin_clusters = self.calculate_BIN_interaction(coords, labels, \
-                BIN, iteration, cluster_center_mass, cluster_labels)
+            dist, mean_num_synaptic_coords, intearact_prob , n_bin_clusters, h0, h1, h2, h3 = \
+                self.calculate_BIN_interaction(coords, labels, BIN, iteration, cluster_center_mass, cluster_labels)
+
+            """
+            h0 = h0[h0<1000]
+            h1 = h1[h1<1000]
+            h2 = h2[h2<1000]
+            h3 = h3[h3<1000]
+
+            v = np.arange(0, 1000, 20)
+            n0, bins = np.histogram(h0, v)
+            n1, bins = np.histogram(h1, v)
+            n2, bins = np.histogram(h2, v)
+            n3, bins = np.histogram(h3, v)
+
+            f = plt.figure(figsize=(8,4))
+            ax = f.add_subplot(1,2,1)
+
+            ax.plot(v[:-1]+10, n0/2, 'b')
+            ax.plot(v[:-1]+10, n1/2, 'r')
+            ax.plot(v[:-1]+10, n2/2, 'g')
+            ax.plot(v[:-1]+10, n3/2, 'k')
+
+            ax.set_ylabel('Count')
+            ax.set_xlabel('Distance (nm)')
+            ax.spines['top'].set_visible(False)
+            ax.spines['right'].set_visible(False)
+            ax.set_title('Raw Histrogram')
+            #ax.legend(('1st nearest', '5st nearest', '10st nearest', '25st nearest'), loc='upper right')
+
+            ax = f.add_subplot(1,2,2)
+            ax.plot(v[:-1]+10, n0/np.sum(n0), 'b')
+            ax.plot(v[:-1]+10, n1/np.sum(n1), 'r')
+            ax.plot(v[:-1]+10, n2/np.sum(n2), 'g')
+            ax.plot(v[:-1]+10, n3/np.sum(n3), 'k')
+
+            ax.set_ylabel('Count')
+            ax.set_xlabel('Distance (nm)')
+            ax.spines['top'].set_visible(False)
+            ax.spines['right'].set_visible(False)
+            ax.set_title('Normalized Histrogram')
+
+            plt.legend(('1st nearest', '5st nearest', '10st nearest', '25st nearest'), loc='upper right')
+
+            if 'Glu' in d:
+                fn = 'GluA-BIN'
+            elif 'Bassoon' in d:
+                fn = 'Bassoon-BIN'
+            elif 'SYP' in d:
+                fn = 'SYP-BIN'
+            elif 'PSD' in d:
+                fn = 'PSD95-BIN'
+            elif 'Syn' in d:
+                fn = 'Syn-BIN'
+            elif 'Vgat' in d:
+                fn = 'Vgat-BIN'
+
+            plt.savefig(fn + '.pdg', format='pdf')
+            plt.show()
             #dist, mean_num_synaptic_coords = self.calculate_NN_distribution(coords, BIN, iteration)
+            """
+
             NN_dist.append(dist)
             subdirs.append(d)
             interaction_prob.append(intearact_prob)
@@ -228,6 +306,7 @@ class NN():
 
             pair_dist = np.zeros((len(ind), len(ind)), dtype = np.float32)
             for j in range(3):
+            #for j in range(2):
                 pair_dist += (np.tile(np.reshape(coords[ind,j],(1,len(ind))), (len(ind), 1)) - \
                     np.tile(np.reshape(coords[ind,j],(len(ind), 1)), (1, len(ind))))**2
 
@@ -308,8 +387,10 @@ class NN():
         num_synaptic_marker = []
         interactions = []
         interactions_u = []
-        interaction_prob = []
-        hits = []
+        hits = [[] for _ in range(5)]
+        histogram = [[] for _ in range(4)]
+        interaction_prob = [[] for _ in range(5)]
+
 
         print('len iteration', len(iteration))
 
@@ -324,46 +405,88 @@ class NN():
             # for each BIN coordinate, we will find the nearest distance to the pre/post synaptic marker
             #plt.figure(figsize=(15,15))
 
-            if BIN[ind[0]]:
-                bin_ind = ind[0]
-                syn_ind = ind[1]
-            else:
-                bin_ind = ind[1]
-                syn_ind = ind[0]
-            print('number of bin clusters ', i, len(cluster_labels[bin_ind]))
+            for r in [0]:
+
+                if BIN[ind[r]]:
+                    bin_ind = ind[0]
+                    syn_ind = ind[1]
+                else:
+                    bin_ind = ind[1]
+                    syn_ind = ind[0]
+                print('number of bin clusters ', i, len(cluster_labels[bin_ind]))
 
 
-            for j in range(len(cluster_labels[bin_ind])):
-                syn_marker_nearby = False
-                for k in range(len(cluster_labels[syn_ind])):
-                    d = np.sqrt(np.sum((cluster_center_mass[bin_ind][j] - cluster_center_mass[syn_ind][k])**2))
-                    if d < self.bin_interact_consideration_threshold:
-                        if not syn_marker_nearby:
-                            hits.append(0)
-                            syn_marker_nearby = True
+
+                for j in range(len(cluster_labels[bin_ind])):
+                    syn_marker_nearby = False
+                    for k in range(len(cluster_labels[syn_ind])):
+
+                        for m in range(5):
+                            hits[m].append(0)
+
+                        hits[4].append(1)
+
+                        d = np.sum((cluster_center_mass[bin_ind][j] - cluster_center_mass[syn_ind][k])**2)
+                        if d > 3000**2:
+                            for m in range(4):
+                                histogram[m].append(1000)
+                            continue
+
+                        # hit if center of clusters are less than 20 nm apart
+                        if d < 50**2:
+                            hits[0][-1] = 1
+
 
                         bin_cluster = np.where(labels[bin_ind] == cluster_labels[bin_ind][j])[0]
                         syn_cluster = np.where(labels[syn_ind] == cluster_labels[syn_ind][k])[0]
+
+
                         nbrs = NearestNeighbors(n_neighbors=1, algorithm='kd_tree').fit(coords[bin_ind][bin_cluster])
                         current_dist, _ = nbrs.kneighbors(coords[syn_ind][syn_cluster])
+
+                        if np.median(current_dist) < 50:
+                            # hit if median of pairwise distances are less than 20 nm apart
+                            hits[1][-1] = 1
+                            pass
+
+                        #print(coords[syn_ind][syn_cluster].shape, coords[bin_ind][bin_cluster].shape, current_dist.shape)
+                        #histogram.append(np.min(current_dist))
+                        sorted_dist = np.sort(current_dist[:,0])
+                        #print(sorted_dist.shape)
+                        histogram[0].append(sorted_dist[0])
+                        histogram[1].append(sorted_dist[4])
+                        histogram[2].append(sorted_dist[9])
+                        histogram[3].append(sorted_dist[24])
+
+
+                        if sorted_dist[9] < 50:
+                            # hit if 10th lowest pairwise distances is less than 20 nm
+                            hits[2][-1] = 1
+                            pass
+                        #histogram.append(np.sqrt(d))
+
+
                         num_synaptic_coords.append(coords[syn_ind].shape[0])
                         if np.sum(current_dist < self.bin_interact_dist_threshold) >= self.bin_interact_contact_points:
                             nbrs = NearestNeighbors(n_neighbors=1, algorithm='kd_tree').fit(coords[syn_ind][syn_cluster])
                             current_dist, _ = nbrs.kneighbors(coords[bin_ind][bin_cluster])
                             if np.sum(current_dist < self.bin_interact_dist_threshold) >= self.bin_interact_contact_points:
-                                hits[-1] = 1
-                                break
+                                hits[3][-1] = 1
+                                #break
                                 #num_bin.append(len(bin_cluster))
                                 #num_synaptic_marker.append(len(syn_cluster))
                                 #interactions.append(np.sum(current_dist < self.bin_interact_dist_threshold))
                                 #interactions_u.append(np.mean(current_dist < self.bin_interact_dist_threshold))
 
 
-            interaction_prob.append(np.mean(hits))
+            for m in range(4):
+                interaction_prob[m].append(np.mean(hits[m]))
+            interaction_prob[4].append(np.sum(hits[4]))
             dist.append(current_dist)
             #print('hits ', hits, 'misses ', misses, 'number BIN', n_bin, 'Hit cluster size ', np.mean(num_bin), np.mean(num_synaptic_marker))
             #print('sum and mean interactions per hit', np.mean(interactions), np.mean(interactions_u))
-        return list(itertools.chain(*dist)), np.mean(num_synaptic_coords), interaction_prob, num_bin
+        return list(itertools.chain(*dist)), np.mean(num_synaptic_coords), interaction_prob, num_bin,\
+            np.stack(histogram[0]), np.stack(histogram[1]), np.stack(histogram[2]), np.stack(histogram[3])
 
     def load_coords(self, filename):
 
