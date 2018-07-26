@@ -21,22 +21,6 @@ class NN():
 
         self.data_dir = data_dir
 
-        """
-        # dbscan parameters
-        self.dbscan_max_dist = 50
-        self.dbscan_min_samples = 3
-        self.dbscan_min_samples_per_cluster = 25
-        self.dbscan_max_samples_per_cluster = 10000
-        self.dbscan_min_diameter = 25
-        self.dbscan_max_diameter = 1000
-
-        # BIN1 interaction parameters
-        self.bin_interact_consideration_threshold = 500
-        self.bin_interact_dist_threshold = 20
-        self.bin_interact_contact_points = 10
-        """
-
-
 
         # dbscan parameters
         self.dbscan_max_dist = 50
@@ -321,6 +305,8 @@ class NN():
         return labels, cluster_center_mass, cluster_labels
 
     def find_clusters(self, coords):
+        
+        # OBSOLETE
 
         max_dist = 50
         min_samples = 3
@@ -353,6 +339,8 @@ class NN():
         return cluster_coords, cluster_center_mass
 
     def calculate_NN_distribution(self, coords, BIN, iteration):
+        
+        # OBSOLETE
 
         dist = []
         num_synaptic_coords = []
@@ -503,6 +491,8 @@ class NN():
         return coords
 
     def eliminate_isolated_coords(self, coords):
+        
+        # OBSOLETE
 
         th = 10 # coordinates must be within this distance of another coordinate
         nbrs = NearestNeighbors(n_neighbors=2, algorithm='kd_tree').fit(coords)
