@@ -242,17 +242,15 @@ class NN():
 
                 ind = np.where(lbs > -1)[0] # only use coords belonging to a cluster
                 print('Numer of pts, cluster pts, and pct ', len(lbs), len(ind), len(ind)/len(lbs))
+
+                # appendend all cluster data to a single list, and then calculated the interactions
                 coords.append(x[ind, :])
                 labels.append(lbs[ind])
                 cluster_center_mass.append(cluster_cm)
                 cluster_labels.append(cluster_lbs)
-                #coords.append(x)
-
 
             dist, mean_num_synaptic_coords, intearact_prob , n_bin_clusters, h0, h1, h2, h3 = \
                 self.calculate_BIN_interaction(coords, labels, BIN, iteration, cluster_center_mass, cluster_labels)
-
-
 
             NN_dist.append(dist)
             subdirs.append(d)
@@ -270,9 +268,6 @@ class NN():
         _, labels = dbscan(coords, self.dbscan_max_dist, self.dbscan_min_samples, metric, algorithm = algo)
         cluster_center_mass = []
         cluster_labels = []
-
-
-
 
 
         # given all the clusters, will now discard clusters that are too big/small, not enough points
@@ -300,7 +295,6 @@ class NN():
         return labels, cluster_center_mass, cluster_labels
 
 
-
     def calculate_BIN_interaction(self, coords, labels, BIN, iteration, cluster_center_mass, cluster_labels):
 
         dist = []
@@ -319,13 +313,12 @@ class NN():
         5 - (Control) Total number of cluster pairs
         """
         hits = [[] for _ in range(5)]
-        histogram = [[] for _ in range(4)]
+        histogram = [[] for _ in range(4)] # distribution of cluster pair "distances", based on metric above
         interaction_prob = [[] for _ in range(5)]
 
-
-        print('len iteration', len(iteration))
-
         for i in np.unique(iteration):
+
+            # find the two files associated with specifci iteration
             ind = np.where(iteration == i)[0]
             if not len(ind)==2:
                 error('Issue ', ind)
@@ -333,77 +326,79 @@ class NN():
             total_possible = 0
             n_bin = 0
 
-            for r in [0]:
+            # which file is the BIN file
+            # find which clusters belong to each
+            if BIN[ind[0]]:
+                bin_ind = ind[0]
+                syn_ind = ind[1]
+            else:
+                bin_ind = ind[1]
+                syn_ind = ind[0]
+            print('number of bin clusters ', i, len(cluster_labels[bin_ind]))
 
-                if BIN[ind[r]]:
-                    bin_ind = ind[0]
-                    syn_ind = ind[1]
-                else:
-                    bin_ind = ind[1]
-                    syn_ind = ind[0]
-                print('number of bin clusters ', i, len(cluster_labels[bin_ind]))
+            # loop through pairs of clusters
+            for j in range(len(cluster_labels[bin_ind])):
+                syn_marker_nearby = False
+                for k in range(len(cluster_labels[syn_ind])):
 
+                    for m in range(5):
+                        # hits is used to indictate whether a pair is interacting
+                        hits[m].append(0)
 
-                for j in range(len(cluster_labels[bin_ind])):
-                    syn_marker_nearby = False
-                    for k in range(len(cluster_labels[syn_ind])):
+                    hits[4].append(1)
 
-                        for m in range(5):
-                            hits[m].append(0)
+                    d = np.sum((cluster_center_mass[bin_ind][j] - cluster_center_mass[syn_ind][k])**2)
+                    if d > 3000**2: # we assume that clusters with centers 3000 nm apart are not interacting
+                        for m in range(4):
+                            histogram[m].append(1000)
+                        continue
 
-                        hits[4].append(1)
+                    # hit if center of clusters are less than 20 nm apart
+                    if d < self.bin_interact_dist_threshold**2:
+                        hits[0][-1] = 1
 
-                        d = np.sum((cluster_center_mass[bin_ind][j] - cluster_center_mass[syn_ind][k])**2)
-                        if d > 3000**2: # we assume that clusters with centers 3000 nm apart are not interacting
-                            for m in range(4):
-                                histogram[m].append(1000)
-                            continue
+                    bin_cluster = np.where(labels[bin_ind] == cluster_labels[bin_ind][j])[0]
+                    syn_cluster = np.where(labels[syn_ind] == cluster_labels[syn_ind][k])[0]
 
-                        # hit if center of clusters are less than 20 nm apart
-                        if d < self.bin_interact_dist_threshold**2:
-                            hits[0][-1] = 1
+                    # find nearest points in other cluster
+                    nbrs = NearestNeighbors(n_neighbors=1, algorithm='kd_tree').fit(coords[bin_ind][bin_cluster])
+                    current_dist, _ = nbrs.kneighbors(coords[syn_ind][syn_cluster])
 
-
-                        bin_cluster = np.where(labels[bin_ind] == cluster_labels[bin_ind][j])[0]
-                        syn_cluster = np.where(labels[syn_ind] == cluster_labels[syn_ind][k])[0]
-
-
-                        nbrs = NearestNeighbors(n_neighbors=1, algorithm='kd_tree').fit(coords[bin_ind][bin_cluster])
-                        current_dist, _ = nbrs.kneighbors(coords[syn_ind][syn_cluster])
-
-                        if np.median(current_dist) < self.bin_interact_dist_threshold:
-                            # hit if median of pairwise distances are less than 20 nm apart
-                            hits[1][-1] = 1
-                            pass
-
-                        #print(coords[syn_ind][syn_cluster].shape, coords[bin_ind][bin_cluster].shape, current_dist.shape)
-                        #histogram.append(np.min(current_dist))
-                        sorted_dist = np.sort(current_dist[:,0])
-                        #print(sorted_dist.shape)
-                        histogram[0].append(sorted_dist[0])
-                        histogram[1].append(sorted_dist[4])
-                        histogram[2].append(sorted_dist[9])
-                        histogram[3].append(sorted_dist[24])
+                    if np.median(current_dist) < self.bin_interact_dist_threshold:
+                        # hit if median of pairwise distances are less than 20 nm apart
+                        hits[1][-1] = 1
+                        pass
 
 
-                        if sorted_dist[9] < self.bin_interact_dist_threshold:
-                            # hit if 10th lowest pairwise distances is less than 20 nm
-                            hits[2][-1] = 1
-                            pass
-                        #histogram.append(np.sqrt(d))
+                    # assorted pairwise distance distributions
+                    #print(coords[syn_ind][syn_cluster].shape, coords[bin_ind][bin_cluster].shape, current_dist.shape)
+                    #histogram.append(np.min(current_dist))
+                    sorted_dist = np.sort(current_dist[:,0])
+                    #print(sorted_dist.shape)
+                    histogram[0].append(sorted_dist[0])
+                    histogram[1].append(sorted_dist[4])
+                    histogram[2].append(sorted_dist[9])
+                    histogram[3].append(sorted_dist[24])
 
 
-                        num_synaptic_coords.append(coords[syn_ind].shape[0])
+                    if sorted_dist[9] < self.bin_interact_dist_threshold:
+                        # hit if 10th lowest pairwise distances is less than 20 nm
+                        hits[2][-1] = 1
+                        pass
+                    #histogram.append(np.sqrt(d))
+
+
+                    num_synaptic_coords.append(coords[syn_ind].shape[0])
+                    if np.sum(current_dist < self.bin_interact_dist_threshold) >= self.bin_interact_contact_points:
+                        nbrs = NearestNeighbors(n_neighbors=1, algorithm='kd_tree').fit(coords[syn_ind][syn_cluster])
+                        current_dist, _ = nbrs.kneighbors(coords[bin_ind][bin_cluster])
                         if np.sum(current_dist < self.bin_interact_dist_threshold) >= self.bin_interact_contact_points:
-                            nbrs = NearestNeighbors(n_neighbors=1, algorithm='kd_tree').fit(coords[syn_ind][syn_cluster])
-                            current_dist, _ = nbrs.kneighbors(coords[bin_ind][bin_cluster])
-                            if np.sum(current_dist < self.bin_interact_dist_threshold) >= self.bin_interact_contact_points:
-                                hits[3][-1] = 1
-                                #break
-                                #num_bin.append(len(bin_cluster))
-                                #num_synaptic_marker.append(len(syn_cluster))
-                                #interactions.append(np.sum(current_dist < self.bin_interact_dist_threshold))
-                                #interactions_u.append(np.mean(current_dist < self.bin_interact_dist_threshold))
+                            hits[3][-1] = 1
+                            #break
+                            #num_bin.append(len(bin_cluster))
+                            #num_synaptic_marker.append(len(syn_cluster))
+                            #interactions.append(np.sum(current_dist < self.bin_interact_dist_threshold))
+                            #interactions_u.append(np.mean(current_dist < self.bin_interact_dist_threshold))
 
 
             for m in range(4):
