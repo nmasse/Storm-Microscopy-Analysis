@@ -23,6 +23,7 @@ class NN():
     def __init__(self, data_dir = '/home/masse/Storm-Microscopy-Analysis/Data/'):
 
         self.data_dir = data_dir
+        self.save_fn = '_results_dist50_max_diam1000_min_samples25_noise250_'
 
         # dbscan parameters
         self.dbscan_max_dist = 50
@@ -43,11 +44,12 @@ class NN():
 
     def run_analysis(self, marker = 'Amph1'):
 
+        # sweeps different number of interact_contact_points
         for m in [1,2,5,10]:
 
             self.bin_interact_contact_points = m
 
-            save_fn = marker + '_results_dist50_max_diam1000_min_samples25_noise250_' + str(m) + 'pts_v2.pkl'
+            save_fn = marker + self.save_fn + str(m) + 'pts.pkl'
             results = {'inter_p': [], 'shuffle_inter_p': [], 'bin_file': [], 'syn_file': [], 'bin_clusters': [], 'syn_clusters': []}
 
             bin_files, syn_files = self.search_dirs()
@@ -87,7 +89,6 @@ class NN():
 
         cluster_data = {'coords': coords, 'coord_labels': coord_labels, 'coord_index': coord_index, \
             'cluster_center_mass': cluster_center_mass, 'cluster_labels':cluster_labels}
-        #cluster_data = {'cluster_center_mass': np.float32(cluster_center_mass), 'cluster_labels': np.int32(cluster_labels)}
 
         return cluster_data
 
@@ -120,20 +121,18 @@ class NN():
         inh_scores = []
 
         for j, label in enumerate(labels):
-            fn = label + '_results_dist50_max_diam1000_min_samples25_noise250_' + str(1) + 'pts_v2.pkl'
+            fn = label + '_results_dist50_max_diam1000_min_samples25_noise250_' + str(5) + 'pts_v2.pkl'
             #fn = label + '_results_dist50_max_diam1000_min_samples25_noise250_flat_z_' + str(2) + 'pts.pkl'
             if not os.path.isfile(fn):
                 continue
             x = pickle.load(open(fn,'rb'))
             z_score = []
             for i in range(len(x['inter_p'])):
+                if x['bin_clusters'][i] < 5 or x['syn_clusters'][i] < 5:
+                    continue
                 u = np.mean(x['shuffle_inter_p'][i])
-                sd = 1e-4 + np.std(x['shuffle_inter_p'][i])
-                z = (x['inter_p'][i] - u)/sd
-                #r = (x['inter_p'][i] - u)/(x['inter_p'][i] + u)
-                #d = x['inter_p'][i] - u
-                #pct = np.mean(x['inter_p'][i]>x['shuffle_inter_p'][i])
-                z = np.maximum(0.,z)
+                sd = 1e-6 + np.std(x['shuffle_inter_p'][i])
+                z = np.maximum(0., (x['inter_p'][i] - u)/sd)
                 z_score.append(z)
 
             if 'PSD' in label or 'GluA1' in label or 'CaMKII' in label:
@@ -180,7 +179,6 @@ class NN():
         ax1.spines['right'].set_visible(False)
 
         t1,p1 = scipy.stats.ttest_ind(post_scores, pre_scores)
-        #ax1.set_title('Pre vs. Post: P = ', p1)
         print('t-test p = ', p1)
 
         t1,p1 = scipy.stats.ranksums(post_scores, pre_scores)
@@ -246,12 +244,6 @@ class NN():
                 coord_labels[ind] = -1
                 continue
 
-            """
-            if len(ind) > 20000:
-                coord_labels[ind[::2]] = -1
-                ind = ind[1::2]
-            """
-
             pair_dist = np.zeros((len(ind), len(ind)), dtype = np.float32)
             for j in range(3):
             #for j in range(2):
@@ -265,70 +257,21 @@ class NN():
             cluster_center_mass.append(np.mean(coords[ind,:], axis = 0))
             cluster_labels.append(i)
 
-        #coord_labels = np.stack(coord_labels)
         cluster_center_mass = np.stack(cluster_center_mass)
         cluster_labels = np.stack(cluster_labels)
 
         ind_coords = np.where(coord_labels>=0)[0]
-        ind_clusters = np.where(cluster_labels>=0)[0]
-
         coords = coords[ind_coords, :]
         coord_labels = coord_labels[ind_coords]
-        cluster_center_mass = cluster_center_mass[ind_clusters, :]
-        cluster_labels = cluster_labels[ind_clusters]
 
         coord_index = []
-
-        for i, label in enumerate(cluster_labels):
+        for label in cluster_labels:
             ind = np.where(coord_labels == label)[0]
             coord_index.append(ind)
 
 
         return coords, coord_labels, cluster_center_mass, cluster_labels, coord_index
 
-    def calculate_BIN_interaction_cluster_center(self, coords, labels, BIN, iteration, cluster_center_mass, cluster_labels):
-
-        bins = np.arange(0,20000, 10)
-        dist_hist = np.zeros((len(bins)-1))
-        dist_hist_shuffled = np.zeros((len(bins)-1))
-
-        for i in np.unique(iteration):
-
-            # find the two files associated with specifci iteration
-            ind = np.where(iteration == i)[0]
-            if not len(ind)==2:
-                error('Issue ', ind)
-
-            # which file is the BIN file
-            # find which clusters belong to each
-            if BIN[ind[0]]:
-                bin_ind = ind[0]
-                syn_ind = ind[1]
-            else:
-                bin_ind = ind[1]
-                syn_ind = ind[0]
-            print('number of bin clusters ', i, len(cluster_labels[bin_ind]))
-
-            bin_cent = np.stack(cluster_center_mass[bin_ind])
-            syn_cent = np.stack(cluster_center_mass[syn_ind])
-            min_vals = np.min(np.vstack((bin_cent, syn_cent)), axis = 0)
-            bin_cent -= min_vals
-            syn_cent -= min_vals
-            max_vals = np.max(np.vstack((bin_cent, syn_cent)), axis = 0)
-            print('max vals', max_vals)
-            d = self.calculate_multiple_distance(bin_cent, syn_cent)
-            print('NUMBER UNDER 30 ', np.sum(d<30))
-            dist_hist += np.histogram(d, bins)[0]
-
-            d_shuffled = []
-            for k in range(5000):
-                syn_cent_shuffled = np.zeros_like(syn_cent)
-                for j in range(3):
-                    syn_cent_shuffled[:, j] = max_vals[j]*np.random.rand(syn_cent.shape[0])
-                d1 = self.calculate_multiple_distance(bin_cent, syn_cent_shuffled)
-                dist_hist_shuffled += np.histogram(d1, bins)[0]
-
-        return dist_hist, dist_hist_shuffled
 
     def calculate_multiple_distance(self, x, y):
 
@@ -355,10 +298,10 @@ class NN():
             proximity.append(0)
             for j in range(len(y_data['cluster_labels'])):
                 center_distance = np.sum((x_data['cluster_center_mass'][i,:] - y_data['cluster_center_mass'][j,:])**2)
-
                 # if cluster centers are more than twice the allowed diameter apart, then skip
                 if center_distance > (2*self.dbscan_max_diameter)**2:
                     continue
+
                 ind_coords_y = np.array(y_data['coord_index'][j])
                 current_dist, _ = x_nbrs.kneighbors(y_data['coords'][ind_coords_y, :])
                 if np.sum(current_dist < self.bin_interact_dist_threshold) >= self.bin_interact_contact_points:
